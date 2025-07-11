@@ -59,6 +59,31 @@ get_tensor_backings(
   return all_tensor_backings;
 }
 
+// Multi-GPU version of get_tensor_backings
+std::unordered_map<TensorTypeVariant, GenericTensorAccessorW>
+get_tensor_backings_multi_gpu(
+    std::unordered_map<TensorTypeVariant, GenericTensorAccessorW> const
+        &tensor_type_backings,
+    std::unordered_map<TensorTypeVariant, TensorShape> const
+        &tensor_type_shapes,
+    std::vector<Allocator> const &allocators) {
+  std::unordered_map<TensorTypeVariant, GenericTensorAccessorW>
+      all_tensor_backings = tensor_type_backings;
+
+  // allocate new tensors using round-robin allocation across devices
+  int current_device = 0;
+  for (std::pair<TensorTypeVariant, TensorShape> const &tensor_type_shape :
+       tensor_type_shapes) {
+    int device_id = current_device % allocators.size();
+    GenericTensorAccessorW tensor_backing =
+        allocators[device_id].allocate_tensor(tensor_type_shape.second);
+    all_tensor_backings.insert({tensor_type_shape.first, tensor_backing});
+    current_device++;
+  }
+
+  return all_tensor_backings;
+}
+
 RealmTensorBacking
 construct_realm_tensor_backing(AllocatedTensors const &allocated_tensors,
                                UnallocatedTensors const &unallocated_tensors,
